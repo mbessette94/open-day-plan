@@ -36,6 +36,7 @@ import { getHotkeyStatus, hideCapture } from './quickWindow'
 import { applyReview, getReview } from './db/review'
 import { getSettings, updateSettings } from './db/settings'
 import { buildStandup } from './standup'
+import { scheduleReconcile } from './integrations/blocks'
 import { listEvents } from './integrations/calendarSync'
 import {
   addExternalAsTask,
@@ -71,6 +72,12 @@ import {
   setPriority,
   updateTask
 } from './db/tasks'
+
+/** Pass a task mutation's result through, then refresh the calendar blocks shortly after. */
+function blocksMayChange<T>(result: T): T {
+  scheduleReconcile()
+  return result
+}
 
 export function broadcastDataChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send('data:changed')
@@ -109,20 +116,28 @@ export function registerIpc(): void {
     const next = updateSettings(patch)
     recordToday()
     applySettings(next)
-    return next
+    return blocksMayChange(next) // work hours and timezone move the personal commitments
   })
   ipcMain.handle('tasks:list', (_e, q: TaskListQuery) => listTasks(q))
   ipcMain.handle('tasks:create', (_e, input: TaskCreate) => createTask(input))
   ipcMain.handle('tasks:backlog', (_e, context: Context) => listBacklog(context))
   ipcMain.handle('tasks:setPriority', (_e, id: string, p: Priority | null, assignTo?: string) =>
-    setPriority(id, p, assignTo)
+    blocksMayChange(setPriority(id, p, assignTo))
   )
-  ipcMain.handle('tasks:setCompleted', (_e, id: string, done: boolean) => setCompleted(id, done))
-  ipcMain.handle('tasks:schedule', (_e, id: string, at: string | null) => scheduleTask(id, at))
-  ipcMain.handle('tasks:setDuration', (_e, id: string, minutes: number) => setDuration(id, minutes))
-  ipcMain.handle('tasks:delete', (_e, id: string) => deleteTask(id))
+  ipcMain.handle('tasks:setCompleted', (_e, id: string, done: boolean) =>
+    blocksMayChange(setCompleted(id, done))
+  )
+  ipcMain.handle('tasks:schedule', (_e, id: string, at: string | null) =>
+    blocksMayChange(scheduleTask(id, at))
+  )
+  ipcMain.handle('tasks:setDuration', (_e, id: string, minutes: number) =>
+    blocksMayChange(setDuration(id, minutes))
+  )
+  ipcMain.handle('tasks:delete', (_e, id: string) => blocksMayChange(deleteTask(id)))
   ipcMain.handle('tasks:get', (_e, id: string) => getTaskDetail(id))
-  ipcMain.handle('tasks:update', (_e, id: string, patch: TaskUpdate) => updateTask(id, patch))
+  ipcMain.handle('tasks:update', (_e, id: string, patch: TaskUpdate) =>
+    blocksMayChange(updateTask(id, patch))
+  )
   ipcMain.handle('links:add', (_e, taskId: string, url: string) => addLink(taskId, url))
   ipcMain.handle('links:remove', (_e, id: string) => removeLink(id))
   ipcMain.handle('activity:addComment', (_e, taskId: string, text: string) =>
@@ -204,18 +219,22 @@ export function registerIpc(): void {
   ipcMain.handle('capture:submit', (_e, text: string, hint?: CaptureHint) => {
     const result = submitCapture(text, hint)
     if (result) broadcastDataChanged()
-    return result
+    return blocksMayChange(result)
   })
   ipcMain.handle('capture:hide', () => hideCapture())
   ipcMain.handle('capture:hotkeyStatus', () => getHotkeyStatus())
   ipcMain.handle('standup:get', (_e, context: Context) => buildStandup(context))
   ipcMain.handle('review:get', () => getReview())
-  ipcMain.handle('review:apply', (_e, actions: ReviewAction[]) => applyReview(actions))
+  ipcMain.handle('review:apply', (_e, actions: ReviewAction[]) =>
+    blocksMayChange(applyReview(actions))
+  )
   ipcMain.handle('links:preview', (_e, url: string, force?: boolean) => getPreview(url, force))
 
   ipcMain.handle('integrations:list', () => listIntegrations())
-  ipcMain.handle('integrations:save', (_e, input: IntegrationInput) => saveIntegration(input))
-  ipcMain.handle('integrations:remove', (_e, id: string) => removeIntegration(id))
+  ipcMain.handle('integrations:save', (_e, input: IntegrationInput) =>
+    blocksMayChange(saveIntegration(input))
+  )
+  ipcMain.handle('integrations:remove', (_e, id: string) => blocksMayChange(removeIntegration(id)))
   ipcMain.handle('integrations:test', async (_e, id: string): Promise<TestOutcome> => {
     try {
       const result = await testProvider(getRecord(id))

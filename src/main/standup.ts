@@ -69,7 +69,8 @@ export function buildStandup(context: Context, now = new Date()): StandupData {
       due: t.due_date
     }))
 
-  const timed = listEvents(context, today, cur.start, cur.end).filter((e) => !e.all_day)
+  // personal commitments are synthesized busy time, not meetings
+  const timed = listEvents(context, today, cur.start, cur.end).filter((e) => !e.all_day && !e.block)
   const meetings = {
     count: timed.length,
     first: timed.length ? timeOf(timed.map((e) => e.start_at).sort()[0]) : null

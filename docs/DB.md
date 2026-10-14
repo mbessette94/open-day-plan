@@ -88,6 +88,7 @@ ones from growing with history.
 | `task_link UNIQUE(task_id, url)` | link lists and the duplicate guard |
 | `external_item_task UNIQUE(task_id)` | one tracking row per task |
 | `link_preview_integration`, `calendar_event_*` | cascades; per-day agenda and notifier queries |
+| `calendar_block_source UNIQUE(integration_id, calendar_id, kind, source_key)` | the block reconcile: find what was already pushed for a task or personal event |
 
 Add an index only for a concrete query, and say which in the migration. `PRAGMA optimize` runs
 hourly and on quit.
@@ -98,6 +99,7 @@ hourly and on quit.
   at startup.
 - `activity_log` is history and is kept.
 - `calendar_event` is replaced wholesale on each calendar sync.
+- `calendar_block` tracks the Focus time / Personal commitment events written to the work calendar, so a later pass updates or deletes exactly those. It is never read back as `calendar_event`.
 
 ## Pre-release layout
 

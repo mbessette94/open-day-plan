@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseIcs } from './ics'
+import { buildBlockIcs, parseIcs } from './ics'
 
 const ICS = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -78,5 +78,31 @@ describe('parseIcs', () => {
     expect(
       parseIcs(ICS, new Date('2027-01-01T00:00:00Z'), new Date('2027-02-01T00:00:00Z'))
     ).toEqual([])
+  })
+})
+
+describe('calendar blocks', () => {
+  const block = {
+    id: 'b1',
+    kind: 'personal' as const,
+    title: 'Personal commitment',
+    start_at: '2026-10-13T14:00:00.000Z',
+    end_at: '2026-10-13T15:30:00.000Z',
+    remote_id: null
+  }
+
+  it('builds a busy, tagged VEVENT', () => {
+    const ics = buildBlockIcs(block, new Date('2026-10-13T12:00:00.000Z'))
+    expect(ics).toContain('\r\nUID:b1@open-day-plan\r\n')
+    expect(ics).toContain('DTSTART:20261013T140000Z')
+    expect(ics).toContain('DTEND:20261013T153000Z')
+    expect(ics).toContain('SUMMARY:Personal commitment')
+    expect(ics).toContain('TRANSP:OPAQUE')
+    expect(ics).toContain('X-ODP-BLOCK:personal')
+  })
+
+  it('is skipped when read back, so it is not counted as a meeting', () => {
+    const range: [Date, Date] = [new Date('2026-10-13T00:00:00Z'), new Date('2026-10-14T00:00:00Z')]
+    expect(parseIcs(buildBlockIcs(block), ...range)).toEqual([])
   })
 })

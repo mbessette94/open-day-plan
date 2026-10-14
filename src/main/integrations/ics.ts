@@ -27,6 +27,8 @@ export function parseIcs(data: string, rangeStart: Date, rangeEnd: Date): Parsed
   const out: ParsedEvent[] = []
   const push = (e: ICAL.Event, start: ICAL.Time, end: ICAL.Time, recurring: boolean): void => {
     if (e.component.getFirstPropertyValue('status') === 'CANCELLED') return
+    // a block this app wrote: reading it back would double-count it as a meeting
+    if (e.component.hasProperty('x-odp-block')) return
     const allDay = start.isDate
     const startAt = allDay ? start.toString() : start.toJSDate().toISOString()
     const endAt = allDay ? end.toString() : end.toJSDate().toISOString()
@@ -58,4 +60,36 @@ export function parseIcs(data: string, rangeStart: Date, rangeEnd: Date): Parsed
     }
   }
   return out
+}
+
+/** A busy block this app writes to a calendar. */
+export interface BlockWrite {
+  id: string // stable per block: the iCal UID, and the tag Google keeps in extendedProperties
+  kind: 'focus' | 'personal'
+  title: string
+  start_at: string // ISO UTC
+  end_at: string
+  remote_id: string | null // null: not created yet
+}
+
+const icsStamp = (iso: string): string => iso.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+
+/** The iCalendar document for one block: busy, and tagged so sync can skip it when reading. */
+export function buildBlockIcs(b: BlockWrite, now = new Date()): string {
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//open-day-plan//calendar blocks//EN',
+    'BEGIN:VEVENT',
+    `UID:${b.id}@open-day-plan`,
+    `DTSTAMP:${icsStamp(now.toISOString())}`,
+    `DTSTART:${icsStamp(b.start_at)}`,
+    `DTEND:${icsStamp(b.end_at)}`,
+    `SUMMARY:${b.title}`,
+    'TRANSP:OPAQUE',
+    `X-ODP-BLOCK:${b.kind}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+    ''
+  ].join('\r\n')
 }

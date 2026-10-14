@@ -1,4 +1,5 @@
 import { getSettings } from '../db/settings'
+import { reconcileBlocks } from './blocks'
 import { syncCalendar } from './calendarSync'
 import { syncGithub } from './githubSync'
 import { errorMessage } from './http'
@@ -20,6 +21,8 @@ export async function runSync(id: string): Promise<void> {
     if (rec.kind === 'github') await syncGithub(rec)
     else if (rec.kind === 'google_calendar' || rec.kind === 'caldav') await syncCalendar(rec)
     setSyncStatus(id, { synced: true, error: null })
+    // fresh events may change the personal commitments; never throws, records its own errors
+    if (rec.kind === 'google_calendar' || rec.kind === 'caldav') await reconcileBlocks()
   } catch (e) {
     setSyncStatus(id, { error: errorMessage(e) })
   } finally {

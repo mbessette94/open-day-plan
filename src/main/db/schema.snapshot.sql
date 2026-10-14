@@ -14,6 +14,20 @@ CREATE TABLE app_state (
   value TEXT NOT NULL
 );
 
+-- table calendar_block
+CREATE TABLE calendar_block (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('focus', 'personal')),
+  source_key TEXT NOT NULL,                      -- focus: task id; personal: event|work day it was clipped for
+  integration_id TEXT NOT NULL REFERENCES integration(id) ON DELETE CASCADE,
+  calendar_id TEXT NOT NULL,
+  remote_id TEXT,                                -- Google event id / CalDAV object URL; NULL until created
+  start_at TEXT NOT NULL CHECK (start_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'),
+  end_at TEXT NOT NULL CHECK (end_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'),
+  pushed_at TEXT CHECK (pushed_at IS NULL OR pushed_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'),
+  CHECK (end_at > start_at)
+);
+
 -- table calendar_event
 CREATE TABLE calendar_event (
   id TEXT PRIMARY KEY,
@@ -150,6 +164,10 @@ CREATE INDEX activity_log_feed ON activity_log(created_at, id);
 
 -- index activity_log_ref
 CREATE INDEX activity_log_ref ON activity_log(ref_id, created_at, id) WHERE ref_id IS NOT NULL;
+
+-- index calendar_block_source
+CREATE UNIQUE INDEX calendar_block_source
+  ON calendar_block(integration_id, calendar_id, kind, source_key);
 
 -- index calendar_event_all_day
 CREATE INDEX calendar_event_all_day ON calendar_event(start_date) WHERE start_date IS NOT NULL;

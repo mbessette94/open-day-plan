@@ -214,12 +214,14 @@ export interface CalendarSelection {
   id: string
   name: string
   context: Context
+  block_target?: boolean // work calendars only; at most one across integrations gets the blocks
 }
 export interface CalendarConfig {
   client_id?: string // google
   server_url?: string // caldav
   username?: string // caldav
   calendars: CalendarSelection[]
+  focus_calendar_id?: string // google: the calendar provisioned for Focus time blocks
 }
 
 export interface Integration {
@@ -286,6 +288,7 @@ export interface CalendarEvent {
   location: string | null
   url: string | null
   context: Context
+  block: 'personal' | null // synthesized "Personal commitment" on the work agenda
 }
 
 export type CalendarListResult =

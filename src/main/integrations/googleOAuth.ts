@@ -8,7 +8,13 @@ import { TOKEN_URL } from './providers/google'
 import { getRecord, parseGoogleSecret, setGoogleRefreshToken } from './registry'
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+// readonly lists calendars; events writes blocks to the work calendar; app.created lets us create
+// and manage the Focus time calendar (and nothing else about the account's calendars)
+const SCOPE = [
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar.app.created'
+].join(' ')
 const TIMEOUT_MS = 3 * 60_000
 
 const b64url = (b: Buffer): string => b.toString('base64url')

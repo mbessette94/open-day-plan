@@ -254,7 +254,12 @@ export function Agenda({
               {inner}
             </a>
           ) : (
-            <div key={event.id} className="event" style={style} title={tip}>
+            <div
+              key={event.id}
+              className={`event${event.block ? ' commitment' : ''}`}
+              style={style}
+              title={tip}
+            >
               {inner}
             </div>
           )

@@ -5,6 +5,7 @@ vi.mock('electron', () => electronMock)
 
 import { openDb, getDb } from '../db'
 import { listActivity } from '../db/activity'
+import { updateSettings } from '../db/settings'
 import { addLink, createTask, deleteTask, getTaskDetail, listBacklog } from '../db/tasks'
 import { listEvents } from './calendarSync'
 import { addExternalAsTask, addJiraSubtasks, listExternal, listJiraSubtasks } from './external'
@@ -408,6 +409,7 @@ describe('quick add + calendar events', () => {
   })
 
   it('lists stored events by day and calendar context', () => {
+    updateSettings({ timezone: 'America/New_York' }) // the day bounds below are EDT
     const i = saveIntegration({
       kind: 'caldav',
       name: 'C',
@@ -439,7 +441,11 @@ describe('quick add + calendar events', () => {
     timed('3', 'w', 'c', 'Tomorrow', '2026-10-14T15:00:00.000Z', '2026-10-14T16:00:00.000Z')
     ins.run('4', i.id, 'w', 'd', 'Offsite', null, null, '2026-10-13', '2026-10-15') // all-day
     const day = ['2026-10-13', '2026-10-13T04:00:00.000Z', '2026-10-14T04:00:00.000Z'] as const
-    expect(listEvents('work', ...day).map((e) => e.title)).toEqual(['Offsite', 'Standup'])
+    // all-day events are hidden; the 2pm dentist lands in work hours, so work shows it as busy
+    expect(listEvents('work', ...day).map((e) => e.title)).toEqual([
+      'Standup',
+      'Personal commitment'
+    ])
     expect(listEvents('personal', ...day).map((e) => e.title)).toEqual(['Dentist'])
   })
 })

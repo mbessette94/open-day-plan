@@ -14,7 +14,8 @@ const event = (id: string, start: string, end: string, all_day = false): Calenda
   all_day,
   location: null,
   url: null,
-  context: 'work'
+  context: 'work',
+  block: null
 })
 const task = (id: string, start: string, duration: number): Task =>
   ({ id, scheduled_at: at(start), duration_min: duration }) as Task

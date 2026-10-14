@@ -203,7 +203,16 @@ function IntegrationForm({
   const setContext = (calId: string, context: Context): void =>
     set(
       'calendars',
-      selected.map((c) => (c.id === calId ? { ...c, context } : c))
+      // only a work calendar can receive blocks
+      selected.map((c) =>
+        c.id === calId ? { ...c, context, block_target: context === 'work' && c.block_target } : c
+      )
+    )
+  // one block target; saving also clears it on the other integrations (registry.ts)
+  const setBlockTarget = (calId: string, on: boolean): void =>
+    set(
+      'calendars',
+      selected.map((c) => ({ ...c, block_target: on && c.id === calId }))
     )
 
   const field = (label: string, k: string, placeholder = '', type = 'text'): React.JSX.Element => (
@@ -355,6 +364,19 @@ function IntegrationForm({
                     <option value="work">Work</option>
                     <option value="personal">Personal</option>
                   </select>
+                )}
+                {sel?.context === 'work' && (
+                  <label
+                    className="toggle"
+                    title="Show personal events in work hours here as busy \u201cPersonal commitment\u201d, up to four weeks ahead. Scheduled work tasks go to their own \u201cOpen Day Plan: Focus time\u201d calendar (Google; other providers use this calendar)."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(sel.block_target)}
+                      onChange={(e) => setBlockTarget(cal.id, e.target.checked)}
+                    />
+                    Block time here
+                  </label>
                 )}
               </div>
             )

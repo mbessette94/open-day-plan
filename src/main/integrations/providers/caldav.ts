@@ -1,7 +1,7 @@
 import { createDAVClient } from 'tsdav'
 import type { CalendarConfig } from '../../../shared/types'
 import { IntegrationError } from '../http'
-import { parseIcs, type ParsedEvent } from '../ics'
+import { buildBlockIcs, parseIcs, type BlockWrite, type ParsedEvent } from '../ics'
 import type { IntegrationRecord } from '../registry'
 
 function cfg(rec: IntegrationRecord): CalendarConfig {
@@ -67,4 +67,44 @@ export async function fetchEvents(
     }
   }
   return out
+}
+
+function assertOk(res: Response, what: string): void {
+  if (res.ok) return
+  throw new IntegrationError(
+    res.status === 401 || res.status === 403
+      ? `Authentication failed (HTTP ${res.status}); the calendar may be read-only`
+      : `CalDAV ${what} failed (HTTP ${res.status})`
+  )
+}
+
+/** Create the block as `<id>.ics` in the calendar, or overwrite it. Returns the object URL. */
+export async function upsertBlock(
+  rec: IntegrationRecord,
+  calendarId: string,
+  b: BlockWrite
+): Promise<string> {
+  const client = await connect(rec)
+  const cal = (await client.fetchCalendars()).find((c) => c.url === calendarId)
+  if (!cal) throw new IntegrationError('Calendar not found on the server')
+  const iCalString = buildBlockIcs(b)
+  if (b.remote_id) {
+    const res = await client.updateCalendarObject({
+      calendarObject: { url: b.remote_id, data: iCalString }
+    })
+    if (res.status !== 404) {
+      assertOk(res, 'update')
+      return b.remote_id
+    } // deleted by hand: recreate below
+  }
+  const filename = `${b.id}.ics`
+  assertOk(await client.createCalendarObject({ calendar: cal, filename, iCalString }), 'create')
+  return new URL(filename, cal.url.endsWith('/') ? cal.url : `${cal.url}/`).href
+}
+
+/** Delete the block. Already gone counts as deleted. */
+export async function deleteBlock(rec: IntegrationRecord, remoteId: string): Promise<void> {
+  const client = await connect(rec)
+  const res = await client.deleteCalendarObject({ calendarObject: { url: remoteId } })
+  if (res.status !== 404 && res.status !== 410) assertOk(res, 'delete')
 }

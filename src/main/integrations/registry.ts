@@ -1,6 +1,11 @@
 import { safeStorage } from 'electron'
 import { v7 as uuidv7 } from 'uuid'
-import type { Integration, IntegrationInput, IntegrationKind } from '../../shared/types'
+import type {
+  CalendarSelection,
+  Integration,
+  IntegrationInput,
+  IntegrationKind
+} from '../../shared/types'
 import { getDb } from '../db'
 
 /** An integration with its decrypted secret. Never sent to the renderer. */
@@ -105,6 +110,38 @@ function encrypt(secret: string): Buffer {
   return safeStorage.encryptString(secret)
 }
 
+/**
+ * Calendar blocks go to one work calendar. Only a work calendar can hold the flag, an integration
+ * keeps at most one, and saving a new target clears the flag on every other integration.
+ */
+function normalizeBlockTarget(
+  id: string,
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  const calendars = config.calendars
+  if (!Array.isArray(calendars)) return config
+  const cleared = (c: CalendarSelection): CalendarSelection => {
+    const copy = { ...c }
+    delete copy.block_target
+    return copy
+  }
+  let found = false
+  const next = (calendars as CalendarSelection[]).map((c) => {
+    const keep = Boolean(c.block_target) && c.context === 'work' && !found
+    if (keep) found = true
+    return keep ? { ...c, block_target: true } : cleared(c)
+  })
+  if (found) {
+    for (const rec of listRecords()) {
+      if (rec.id === id) continue
+      const others = (rec.config.calendars as CalendarSelection[] | undefined) ?? []
+      if (others.some((c) => c.block_target))
+        patchConfig(rec.id, { calendars: others.map(cleared) })
+    }
+  }
+  return { ...config, calendars: next }
+}
+
 export function saveIntegration(input: IntegrationInput): Integration {
   const db = getDb()
   const existing = input.id ? getRecord(input.id) : null
@@ -121,7 +158,13 @@ export function saveIntegration(input: IntegrationInput): Integration {
   }
   const blob = secret === null ? null : encrypt(secret)
   const id = existing?.id ?? uuidv7()
-  const config = JSON.stringify(input.config)
+  // the settings screen may hold a copy older than the calendar we provisioned: keep its id
+  const kept = existing?.config.focus_calendar_id
+  const incoming =
+    typeof kept === 'string' && !('focus_calendar_id' in input.config)
+      ? { ...input.config, focus_calendar_id: kept }
+      : input.config
+  const config = JSON.stringify(normalizeBlockTarget(id, incoming))
   const enabled = (input.enabled ?? existing?.enabled ?? true) ? 1 : 0
   if (existing) {
     db.prepare(

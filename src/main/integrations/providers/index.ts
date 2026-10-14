@@ -1,7 +1,7 @@
 import type { ExternalIssue, LinkPreview } from '../../../shared/types'
 import type { LinkRef } from '../../../shared/links'
 import { IntegrationError } from '../http'
-import type { ParsedEvent } from '../ics'
+import type { BlockWrite, ParsedEvent } from '../ics'
 import type { IntegrationRecord } from '../registry'
 import * as caldav from './caldav'
 import * as github from './github'
@@ -60,5 +60,39 @@ export async function fetchCalendarEvents(
 ): Promise<(ParsedEvent & { calendar_id: string })[]> {
   if (rec.kind === 'google_calendar') return google.fetchEvents(rec, start, end)
   if (rec.kind === 'caldav') return caldav.fetchEvents(rec, start, end)
+  throw new IntegrationError('Not a calendar integration')
+}
+
+/** Create or update a busy block on a calendar. Returns the remote id to keep for later edits. */
+export async function upsertBlockProvider(
+  rec: IntegrationRecord,
+  calendarId: string,
+  block: BlockWrite
+): Promise<string> {
+  if (rec.kind === 'google_calendar') return google.upsertBlock(rec, calendarId, block)
+  if (rec.kind === 'caldav') return caldav.upsertBlock(rec, calendarId, block)
+  throw new IntegrationError('Not a calendar integration')
+}
+
+/**
+ * A calendar of our own on the same account, created on first use. Null where the provider cannot
+ * create one (CalDAV servers differ too much), and the caller falls back to the work calendar.
+ */
+export async function ensureCalendarProvider(
+  rec: IntegrationRecord,
+  name: string,
+  timeZone: string
+): Promise<string | null> {
+  if (rec.kind === 'google_calendar') return google.ensureCalendar(rec, name, timeZone)
+  return null
+}
+
+export async function deleteBlockProvider(
+  rec: IntegrationRecord,
+  calendarId: string,
+  remoteId: string
+): Promise<void> {
+  if (rec.kind === 'google_calendar') return google.deleteBlock(rec, calendarId, remoteId)
+  if (rec.kind === 'caldav') return caldav.deleteBlock(rec, remoteId)
   throw new IntegrationError('Not a calendar integration')
 }
