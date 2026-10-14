@@ -42,7 +42,8 @@
             };
 
             # Update with: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-            npmDepsHash = "sha256-TE7D9c5lbgjvSSgDEI+fXu793/s/w4/mr9v+DOkb3ys=";
+            # (also after a version bump: the hash covers package-lock.json's own version fields)
+            npmDepsHash = "sha256-U9xrnkVYiMSB7XNmt7YumRK53BBR4STa9c6jak6O2PE=";
 
             # No install scripts: electron would try to download its binary (we use nixpkgs'
             # electron) and better-sqlite3 ships portable N-API prebuilds, so nothing needs compiling.
